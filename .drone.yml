@@ -1,0 +1,69 @@
+---
+kind: pipeline
+type: kubernetes
+name: build
+steps:
+- name: image
+  image: images.home.mtaylor.io/drone-kaniko:latest
+  settings:
+    repo: images.home.mtaylor.io/transmission
+    enable_cache: true
+    auto_tag: true
+    username:
+      from_secret: registry_username
+    password:
+      from_secret: registry_password
+    registry:
+      from_secret: registry_url
+image_pull_secrets:
+- dockerconfigjson
+trigger:
+  event:
+  - custom
+  - push
+  - tag
+---
+kind: pipeline
+type: kubernetes
+name: promote
+steps:
+- name: release
+  image: images.home.mtaylor.io/deployer:0.1.0
+  commands:
+  - set -u
+  - git fetch origin 'refs/tags/*:refs/tags/*'
+  - git fetch origin $${DRONE_BRANCH}
+  - export tag=$(get-release-tag)
+  - git tag $${tag}
+  - git push origin $${tag}
+image_pull_secrets:
+- dockerconfigjson
+trigger:
+  event:
+  - promote
+  target:
+  - production
+---
+kind: secret
+name: dockerconfigjson
+get:
+  path: image-pull-secret
+  name: .dockerconfigjson
+---
+kind: secret
+name: registry_username
+get:
+  path: image-registry
+  name: username
+---
+kind: secret
+name: registry_password
+get:
+  path: image-registry
+  name: password
+---
+kind: secret
+name: registry_url
+get:
+  path: image-registry
+  name: url
